@@ -1,1 +1,355 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>OpenWalk Maps</title>
 
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+
+<style>
+    *{
+        box-sizing:border-box;
+        margin:0;
+        padding:0;
+        font-family:Arial, sans-serif;
+    }
+
+    body{
+        display:flex;
+        height:100vh;
+        overflow:hidden;
+        background:#111;
+    }
+
+    #sidebar{
+        width:360px;
+        background:#1b1b1b;
+        color:white;
+        padding:15px;
+        overflow:auto;
+        border-right:2px solid #333;
+    }
+
+    #map{
+        flex:1;
+    }
+
+    h1{
+        margin-bottom:15px;
+        font-size:24px;
+    }
+
+    input, button, select{
+        width:100%;
+        margin-bottom:10px;
+        padding:10px;
+        border:none;
+        border-radius:8px;
+        font-size:15px;
+    }
+
+    input, select{
+        background:#2d2d2d;
+        color:white;
+    }
+
+    button{
+        background:#2a7fff;
+        color:white;
+        cursor:pointer;
+        transition:0.2s;
+    }
+
+    button:hover{
+        background:#1e63c9;
+    }
+
+    .route-card{
+        background:#262626;
+        padding:10px;
+        border-radius:10px;
+        margin-top:10px;
+    }
+
+    .route-card h3{
+        margin-bottom:5px;
+    }
+
+    .info{
+        margin-top:10px;
+        padding:10px;
+        background:#262626;
+        border-radius:10px;
+    }
+
+    .saved-item{
+        background:#2a2a2a;
+        padding:10px;
+        border-radius:8px;
+        margin-top:8px;
+    }
+
+    .saved-item button{
+        margin-top:5px;
+    }
+
+    .leaflet-routing-container{
+        display:none;
+    }
+
+    .small{
+        font-size:13px;
+        color:#bbb;
+    }
+</style>
+</head>
+<body>
+
+<div id="sidebar">
+    <h1>🚶 OpenWalk Maps</h1>
+
+    <input id="start" placeholder="Стартовая точка"/>
+    <input id="end" placeholder="Конечная точка"/>
+
+    <select id="filter">
+        <option value="normal">Обычный маршрут</option>
+        <option value="villages">Через ближайшие поселки</option>
+        <option value="lights">Предпочитать освещённые улицы</option>
+    </select>
+
+    <button onclick="buildRoute()">Построить маршрут</button>
+    <button onclick="saveRoute()">Сохранить маршрут</button>
+    <button onclick="startRecording()">Начать запись маршрута</button>
+    <button onclick="stopRecording()">Остановить запись</button>
+
+    <div class="info" id="info">
+        Маршрут не построен
+    </div>
+
+    <h2 style="margin-top:20px;">💾 Сохранённые маршруты</h2>
+    <div id="savedRoutes"></div>
+</div>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<script>
+const map = L.map('map').setView([50.1109, 8.6821], 13);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    attribution:'© OpenStreetMap'
+}).addTo(map);
+
+let routeLayer = null;
+let recording = false;
+let recordedPoints = [];
+let watchId = null;
+
+function geocode(query){
+    return fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`)
+        .then(r=>r.json());
+}
+
+async function buildRoute(){
+
+    const startText = document.getElementById("start").value;
+    const endText = document.getElementById("end").value;
+    const filter = document.getElementById("filter").value;
+
+    if(!startText || !endText){
+        alert("Введите точки");
+        return;
+    }
+
+    const startData = await geocode(startText);
+    const endData = await geocode(endText);
+
+    if(!startData.length || !endData.length){
+        alert("Точка не найдена");
+        return;
+    }
+
+    const start = startData[0];
+    const end = endData[0];
+
+    let profile = "foot-walking";
+
+    let url = `https://api.openrouteservice.org/v2/directions/${profile}/geojson`;
+
+    const body = {
+        coordinates:[
+            [parseFloat(start.lon), parseFloat(start.lat)],
+            [parseFloat(end.lon), parseFloat(end.lat)]
+        ]
+    };
+
+    if(filter === "villages"){
+        body.options = {
+            avoid_features:[]
+        };
+    }
+
+    if(filter === "lights"){
+        body.options = {
+            avoid_features:["steps"]
+        };
+    }
+
+    const response = await fetch(url,{
+        method:"POST",
+        headers:{
+            "Content-Type":"application/json",
+            "Authorization":"YOUR_OPENROUTESERVICE_API_KEY"
+        },
+        body:JSON.stringify(body)
+    });
+
+    const data = await response.json();
+
+    if(routeLayer){
+        map.removeLayer(routeLayer);
+    }
+
+    routeLayer = L.geoJSON(data,{
+        style:{
+            color:"#00ff88",
+            weight:7,
+            lineCap:"round",
+            lineJoin:"round"
+        }
+    }).addTo(map);
+
+    map.fitBounds(routeLayer.getBounds());
+
+    const summary = data.features[0].properties.summary;
+
+    const distanceKm = (summary.distance / 1000).toFixed(2);
+    const minutes = Math.round(summary.duration / 60);
+
+    document.getElementById("info").innerHTML = `
+        <b>📍 Маршрут построен</b><br><br>
+        🚶 Пешком: ${minutes} мин<br>
+        📏 Дистанция: ${distanceKm} км<br><br>
+        <div class="small">
+        Используются только пешеходные дороги OpenStreetMap
+        </div>
+    `;
+}
+
+function saveRoute(){
+
+    const start = document.getElementById("start").value;
+    const end = document.getElementById("end").value;
+    const filter = document.getElementById("filter").value;
+
+    if(!start || !end){
+        alert("Сначала построй маршрут");
+        return;
+    }
+
+    let routes = JSON.parse(localStorage.getItem("savedRoutes") || "[]");
+
+    routes.push({
+        start,
+        end,
+        filter,
+        time:new Date().toLocaleString()
+    });
+
+    localStorage.setItem("savedRoutes", JSON.stringify(routes));
+
+    loadSavedRoutes();
+
+    alert("Маршрут сохранён");
+}
+
+function loadSavedRoutes(){
+
+    const container = document.getElementById("savedRoutes");
+    container.innerHTML = "";
+
+    let routes = JSON.parse(localStorage.getItem("savedRoutes") || "[]");
+
+    routes.forEach((r,index)=>{
+
+        const div = document.createElement("div");
+        div.className = "saved-item";
+
+        div.innerHTML = `
+            <b>${r.start}</b><br>
+            ➜ ${r.end}<br>
+            <div class="small">${r.time}</div>
+            <button onclick="loadRoute(${index})">Открыть</button>
+        `;
+
+        container.appendChild(div);
+    });
+}
+
+function loadRoute(index){
+
+    let routes = JSON.parse(localStorage.getItem("savedRoutes") || "[]");
+
+    let r = routes[index];
+
+    document.getElementById("start").value = r.start;
+    document.getElementById("end").value = r.end;
+    document.getElementById("filter").value = r.filter;
+
+    buildRoute();
+}
+
+function startRecording(){
+
+    if(!navigator.geolocation){
+        alert("GPS не поддерживается");
+        return;
+    }
+
+    recording = true;
+    recordedPoints = [];
+
+    watchId = navigator.geolocation.watchPosition(pos=>{
+
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
+
+        recordedPoints.push([lat, lon]);
+
+        if(recordedPoints.length > 1){
+
+            if(routeLayer){
+                map.removeLayer(routeLayer);
+            }
+
+            routeLayer = L.polyline(recordedPoints,{
+                color:"red",
+                weight:5
+            }).addTo(map);
+        }
+
+    });
+
+    alert("Запись маршрута началась");
+}
+
+function stopRecording(){
+
+    if(watchId){
+        navigator.geolocation.clearWatch(watchId);
+    }
+
+    recording = false;
+
+    localStorage.setItem("recordedTrack", JSON.stringify(recordedPoints));
+
+    alert("Маршрут записан");
+}
+
+loadSavedRoutes();
+</script>
+
+</body>
+</html>
