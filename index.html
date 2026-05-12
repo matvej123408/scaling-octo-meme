@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport"
-content="width=device-width,initial-scale=1.0,user-scalable=no">
+content="width=device-width,initial-scale=1.0">
 
-<title>OpenWalk Пеший Навигатор</title>
+<title>OpenWalk</title>
 
 <link rel="stylesheet"
 href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
@@ -35,9 +35,9 @@ html,body{
 
     z-index:1000;
 
-    background:#1c1c1c;
+    background:#1b1b1b;
 
-    border-radius:18px;
+    border-radius:16px;
 
     padding:12px;
 
@@ -67,33 +67,18 @@ button{
     font-weight:bold;
 }
 
-#toggleUI{
+#toggleBtn{
     background:#ff9800;
 }
 
 #info{
-    margin-top:10px;
     color:white;
+    margin-top:10px;
     line-height:1.5;
 }
 
-.saved{
-    margin-top:10px;
-    max-height:150px;
-    overflow:auto;
-}
-
-.card{
-    background:#2a2a2a;
-    color:white;
-    padding:10px;
-    border-radius:12px;
-    margin-top:8px;
-}
-
-.small{
-    font-size:12px;
-    opacity:0.7;
+.hidden{
+    display:none;
 }
 
 </style>
@@ -103,58 +88,32 @@ button{
 <div id="panel">
 
 <input id="start"
-placeholder="Старт">
+placeholder="Откуда">
 
 <input id="end"
-placeholder="Куда идти">
+placeholder="Куда">
 
-<select id="filter">
-
-<option value="normal">
-Только пешие дороги
+<select id="mode">
+<option value="foot">
+Пешком
 </option>
-
-<option value="forest">
-Лесные тропы
-</option>
-
-<option value="quiet">
-Тихие дороги
-</option>
-
 </select>
 
-<button onclick="route()">
+<button onclick="buildRoute()">
 Построить маршрут
 </button>
 
-<button onclick="myLocation()">
+<button onclick="useGPS()">
 Моё местоположение
 </button>
 
-<button onclick="saveRoute()">
-Сохранить маршрут
-</button>
-
-<button onclick="startRec()">
-Начать запись
-</button>
-
-<button onclick="stopRec()">
-Остановить запись
-</button>
-
-<button id="toggleUI"
-onclick="toggleUI()">
+<button id="toggleBtn"
+onclick="toggleMenu()">
 Скрыть меню
 </button>
 
 <div id="info">
 Маршрут не построен
-</div>
-
-<div class="saved"
-id="saved">
 </div>
 
 </div>
@@ -169,7 +128,8 @@ id="saved">
 
 const map =
 L.map('map').setView(
-[50.1109,8.6821],13
+[50.1109,8.6821],
+13
 );
 
 L.tileLayer(
@@ -180,15 +140,13 @@ L.tileLayer(
 ).addTo(map);
 
 let routeLayer;
-let watchId;
-let track = [];
-let hiddenUI = false;
+let menuHidden = false;
 
-async function searchPlace(q){
+async function searchPlace(text){
 
-    if(q.includes(",")){
+    if(text.includes(",")){
 
-        const p = q.split(",");
+        const p = text.split(",");
 
         return [{
             lat:p[0],
@@ -197,121 +155,120 @@ async function searchPlace(q){
     }
 
     const url =
-`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}`;
+`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(text)}`;
 
-    const r =
+    const res =
     await fetch(url);
 
-    return await r.json();
+    return await res.json();
 }
 
-async function route(){
+async function buildRoute(){
 
-    const s =
+    const start =
     document.getElementById("start").value;
 
-    const e =
+    const end =
     document.getElementById("end").value;
 
-    const filter =
-    document.getElementById("filter").value;
-
-    if(!s || !e){
+    if(!start || !end){
 
         alert("Введите точки");
 
         return;
     }
 
-    const sData =
-    await searchPlace(s);
+    try{
 
-    const eData =
-    await searchPlace(e);
+        const sData =
+        await searchPlace(start);
 
-    if(!sData.length || !eData.length){
+        const eData =
+        await searchPlace(end);
 
-        alert("Точка не найдена");
+        if(
+        !sData.length ||
+        !eData.length
+        ){
 
-        return;
-    }
+            alert("Точка не найдена");
 
-    const sLat = sData[0].lat;
-    const sLon = sData[0].lon;
-
-    const eLat = eData[0].lat;
-    const eLon = eData[0].lon;
-
-    let exclude =
-    "motorway,trunk,primary,secondary";
-
-    if(filter === "forest"){
-
-        exclude =
-        "motorway,trunk";
-    }
-
-    if(filter === "quiet"){
-
-        exclude =
-        "motorway,trunk,primary";
-    }
-
-    const url =
-`https://router.project-osrm.org/route/v1/foot/${sLon},${sLat};${eLon},${eLat}?overview=full&geometries=geojson&exclude=${exclude}`;
-
-    const res =
-    await fetch(url);
-
-    const data =
-    await res.json();
-
-    if(!data.routes){
-
-        alert("Маршрут не найден");
-
-        return;
-    }
-
-    if(routeLayer){
-
-        map.removeLayer(routeLayer);
-    }
-
-    routeLayer =
-    L.geoJSON(
-    data.routes[0].geometry,
-    {
-        style:{
-            color:"#00ff88",
-            weight:8,
-            opacity:1
+            return;
         }
-    }).addTo(map);
 
-    map.fitBounds(
+        const sLat = sData[0].lat;
+        const sLon = sData[0].lon;
+
+        const eLat = eData[0].lat;
+        const eLon = eData[0].lon;
+
+        const routeURL =
+`https://router.project-osrm.org/route/v1/foot/${sLon},${sLat};${eLon},${eLat}?overview=full&geometries=geojson`;
+
+        const routeRes =
+        await fetch(routeURL);
+
+        const routeData =
+        await routeRes.json();
+
+        if(
+        !routeData.routes ||
+        !routeData.routes.length
+        ){
+
+            alert("Маршрут не найден");
+
+            return;
+        }
+
+        if(routeLayer){
+
+            map.removeLayer(routeLayer);
+        }
+
+        routeLayer =
+        L.geoJSON(
+        routeData.routes[0].geometry,
+        {
+            style:{
+                color:"#00ff88",
+                weight:7
+            }
+        }).addTo(map);
+
+        map.fitBounds(
         routeLayer.getBounds()
-    );
+        );
 
-    const meters =
-    data.routes[0].distance;
+        const km =
+        (
+        routeData.routes[0].distance
+        /1000
+        ).toFixed(2);
 
-    const minutes =
-    Math.round(
-        data.routes[0].duration / 60
-    );
+        const minutes =
+        Math.round(
+        routeData.routes[0].duration
+        /60
+        );
 
-    document.getElementById("info")
-    .innerHTML =
-    `
-    🚶 ${minutes} мин пешком<br>
-    📏 ${(meters/1000).toFixed(2)} км<br>
-    ✅ Только пешие дороги<br>
-    ❌ Без машин
-    `;
+        document.getElementById("info")
+        .innerHTML =
+        `
+        🚶 ${minutes} мин пешком<br>
+        📏 ${km} км<br>
+        ✅ Только пешие маршруты
+        `;
+
+    }catch(e){
+
+        console.log(e);
+
+        alert("Ошибка маршрута");
+    }
 }
 
-function myLocation(){
+function useGPS(){
 
     navigator.geolocation
     .getCurrentPosition(pos=>{
@@ -323,7 +280,8 @@ function myLocation(){
         pos.coords.longitude;
 
         map.setView(
-        [lat,lon],16
+        [lat,lon],
+        16
         );
 
         L.marker([lat,lon])
@@ -332,197 +290,43 @@ function myLocation(){
         document.getElementById("start")
         .value =
         `${lat},${lon}`;
-    });
-}
-
-function saveRoute(){
-
-    const start =
-    document.getElementById("start")
-    .value;
-
-    const end =
-    document.getElementById("end")
-    .value;
-
-    if(!start || !end){
-        return;
-    }
-
-    let routes =
-    JSON.parse(
-    localStorage.getItem("routes")
-    || "[]"
-    );
-
-    routes.push({
-
-        start,
-        end,
-
-        time:
-        new Date()
-        .toLocaleString()
 
     });
-
-    localStorage.setItem(
-    "routes",
-    JSON.stringify(routes)
-    );
-
-    loadSaved();
-
-    alert("Маршрут сохранён");
 }
 
-function loadSaved(){
-
-    const div =
-    document.getElementById("saved");
-
-    div.innerHTML = "";
-
-    const routes =
-    JSON.parse(
-    localStorage.getItem("routes")
-    || "[]"
-    );
-
-    routes.reverse()
-    .forEach((r,index)=>{
-
-        div.innerHTML +=
-        `
-        <div class="card">
-
-        <b>${r.start}</b><br>
-
-        ➜ ${r.end}<br>
-
-        <div class="small">
-        ${r.time}
-        </div>
-
-        <button
-        onclick="loadRoute(${index})">
-
-        Открыть
-
-        </button>
-
-        </div>
-        `;
-    });
-}
-
-function loadRoute(index){
-
-    const routes =
-    JSON.parse(
-    localStorage.getItem("routes")
-    || "[]"
-    );
-
-    const r =
-    routes.reverse()[index];
-
-    document.getElementById("start")
-    .value =
-    r.start;
-
-    document.getElementById("end")
-    .value =
-    r.end;
-
-    route();
-}
-
-function startRec(){
-
-    track = [];
-
-    watchId =
-    navigator.geolocation
-    .watchPosition(pos=>{
-
-        const lat =
-        pos.coords.latitude;
-
-        const lon =
-        pos.coords.longitude;
-
-        track.push([lat,lon]);
-
-        if(routeLayer){
-
-            map.removeLayer(
-            routeLayer
-            );
-        }
-
-        routeLayer =
-        L.polyline(track,{
-
-            color:"red",
-            weight:5
-
-        }).addTo(map);
-
-    });
-
-    alert("Запись маршрута началась");
-}
-
-function stopRec(){
-
-    navigator.geolocation
-    .clearWatch(watchId);
-
-    localStorage.setItem(
-    "track",
-    JSON.stringify(track)
-    );
-
-    alert("Трек сохранён");
-}
-
-function toggleUI(){
+function toggleMenu(){
 
     const panel =
     document.getElementById("panel");
 
     const btn =
-    document.getElementById("toggleUI");
+    document.getElementById("toggleBtn");
 
-    if(!hiddenUI){
+    if(!menuHidden){
 
         Array.from(
         panel.children
         ).forEach(el=>{
 
             if(
-            el.id !== "toggleUI"
+            el.id !== "toggleBtn"
             ){
-                el.style.display =
-                "none";
+
+                el.classList.add(
+                "hidden"
+                );
             }
 
         });
 
-        panel.style.width =
-        "auto";
-
-        panel.style.right =
-        "auto";
-
-        btn.style.display =
-        "block";
+        btn.classList.remove(
+        "hidden"
+        );
 
         btn.innerText =
         "Показать меню";
 
-        hiddenUI = true;
+        menuHidden = true;
 
     }else{
 
@@ -530,19 +334,18 @@ function toggleUI(){
         panel.children
         ).forEach(el=>{
 
-            el.style.display =
-            "block";
+            el.classList.remove(
+            "hidden"
+            );
 
         });
 
         btn.innerText =
         "Скрыть меню";
 
-        hiddenUI = false;
+        menuHidden = false;
     }
 }
-
-loadSaved();
 
 </script>
 
