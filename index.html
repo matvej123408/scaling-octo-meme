@@ -6,22 +6,24 @@
 
 <title>OpenWalk Mobile</title>
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet"
+href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 
 <style>
 
 html,body{
     margin:0;
     padding:0;
+    width:100%;
     height:100%;
+    overflow:hidden;
     font-family:Arial;
     background:#111;
-    overflow:hidden;
 }
 
 #map{
-    height:100%;
     width:100%;
+    height:100%;
 }
 
 #panel{
@@ -30,13 +32,18 @@ html,body{
     left:10px;
     right:10px;
     z-index:1000;
+
     background:#1c1c1c;
-    border-radius:16px;
+    border-radius:18px;
+
     padding:12px;
+
     box-shadow:0 0 20px rgba(0,0,0,0.5);
 }
 
-input,button,select{
+input,
+button,
+select{
     width:100%;
     margin-top:8px;
     padding:14px;
@@ -45,8 +52,9 @@ input,button,select{
     font-size:16px;
 }
 
-input,select{
-    background:#2d2d2d;
+input,
+select{
+    background:#2b2b2b;
     color:white;
 }
 
@@ -59,26 +67,30 @@ button{
 #info{
     color:white;
     margin-top:10px;
-    font-size:14px;
+    line-height:1.5;
 }
 
 .saved{
-    margin-top:10px;
     max-height:150px;
     overflow:auto;
+    margin-top:10px;
 }
 
 .card{
     background:#2a2a2a;
     color:white;
     padding:10px;
-    border-radius:10px;
+    border-radius:12px;
     margin-top:8px;
 }
 
 .small{
     font-size:12px;
     opacity:0.7;
+}
+
+#toggleUI{
+    background:#ff9800;
 }
 
 </style>
@@ -88,6 +100,7 @@ button{
 <div id="panel">
 
 <input id="start" placeholder="Старт">
+
 <input id="end" placeholder="Куда идти">
 
 <select id="filter">
@@ -106,6 +119,11 @@ button{
 
 <button onclick="stopRec()">Остановить запись</button>
 
+<button id="toggleUI"
+onclick="toggleUI()">
+Скрыть меню
+</button>
+
 <div id="info">
 Маршрут не построен
 </div>
@@ -116,11 +134,14 @@ button{
 
 <div id="map"></div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src=
+"https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
+</script>
 
 <script>
 
-const map = L.map('map').setView([50.1109,8.6821],13);
+const map =
+L.map('map').setView([50.1109,8.6821],13);
 
 L.tileLayer(
 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -132,32 +153,56 @@ L.tileLayer(
 let routeLayer;
 let watchId;
 let track = [];
+let hiddenUI = false;
 
 async function searchPlace(q){
+
+    if(q.includes(",")){
+
+        const parts = q.split(",");
+
+        return [{
+            lat:parts[0],
+            lon:parts[1]
+        }];
+    }
 
     const url =
     `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}`;
 
     const r = await fetch(url);
+
     return await r.json();
 }
 
 async function route(){
 
-    const s = document.getElementById("start").value;
-    const e = document.getElementById("end").value;
-    const filter = document.getElementById("filter").value;
+    const s =
+    document.getElementById("start").value;
+
+    const e =
+    document.getElementById("end").value;
+
+    const filter =
+    document.getElementById("filter").value;
 
     if(!s || !e){
+
         alert("Введите точки");
+
         return;
     }
 
-    const sData = await searchPlace(s);
-    const eData = await searchPlace(e);
+    const sData =
+    await searchPlace(s);
+
+    const eData =
+    await searchPlace(e);
 
     if(!sData.length || !eData.length){
-        alert("Не найдено");
+
+        alert("Точка не найдена");
+
         return;
     }
 
@@ -178,27 +223,45 @@ async function route(){
     }
 
     const url =
-    `https://router.project-osrm.org/route/v1/foot/${sLon},${sLat};${eLon},${eLat}?overview=full&geometries=geojson${extra}`;
+`https://router.project-osrm.org/route/v1/foot/${sLon},${sLat};${eLon},${eLat}?overview=full&geometries=geojson${extra}`;
 
-    const res = await fetch(url);
+    const res =
+    await fetch(url);
 
-    const data = await res.json();
+    const data =
+    await res.json();
+
+    if(!data.routes){
+
+        alert("Маршрут не найден");
+
+        return;
+    }
 
     if(routeLayer){
+
         map.removeLayer(routeLayer);
     }
 
-    routeLayer = L.geoJSON(data.routes[0].geometry,{
+    routeLayer =
+    L.geoJSON(data.routes[0].geometry,{
         style:{
             color:"#00ff88",
             weight:7
         }
     }).addTo(map);
 
-    map.fitBounds(routeLayer.getBounds());
+    map.fitBounds(
+        routeLayer.getBounds()
+    );
 
-    const meters = data.routes[0].distance;
-    const minutes = Math.round(data.routes[0].duration / 60);
+    const meters =
+    data.routes[0].distance;
+
+    const minutes =
+    Math.round(
+        data.routes[0].duration / 60
+    );
 
     document.getElementById("info").innerHTML =
     `
@@ -212,8 +275,11 @@ function myLocation(){
 
     navigator.geolocation.getCurrentPosition(pos=>{
 
-        const lat = pos.coords.latitude;
-        const lon = pos.coords.longitude;
+        const lat =
+        pos.coords.latitude;
+
+        const lon =
+        pos.coords.longitude;
 
         map.setView([lat,lon],16);
 
@@ -237,12 +303,19 @@ function saveRoute(){
     }
 
     let routes =
-    JSON.parse(localStorage.getItem("routes") || "[]");
+    JSON.parse(
+        localStorage.getItem("routes")
+        || "[]"
+    );
 
     routes.push({
+
         start,
         end,
-        time:new Date().toLocaleString()
+
+        time:
+        new Date().toLocaleString()
+
     });
 
     localStorage.setItem(
@@ -251,6 +324,8 @@ function saveRoute(){
     );
 
     loadSaved();
+
+    alert("Маршрут сохранён");
 }
 
 function loadSaved(){
@@ -261,19 +336,52 @@ function loadSaved(){
     div.innerHTML = "";
 
     const routes =
-    JSON.parse(localStorage.getItem("routes") || "[]");
+    JSON.parse(
+        localStorage.getItem("routes")
+        || "[]"
+    );
 
-    routes.reverse().forEach(r=>{
+    routes.reverse().forEach((r,index)=>{
 
         div.innerHTML +=
         `
         <div class="card">
+
         <b>${r.start}</b><br>
+
         ➜ ${r.end}<br>
-        <div class="small">${r.time}</div>
+
+        <div class="small">
+        ${r.time}
+        </div>
+
+        <button onclick="loadRoute(${index})">
+        Открыть
+        </button>
+
         </div>
         `;
     });
+}
+
+function loadRoute(index){
+
+    const routes =
+    JSON.parse(
+        localStorage.getItem("routes")
+        || "[]"
+    );
+
+    const r =
+    routes.reverse()[index];
+
+    document.getElementById("start").value =
+    r.start;
+
+    document.getElementById("end").value =
+    r.end;
+
+    route();
 }
 
 function startRec(){
@@ -283,19 +391,25 @@ function startRec(){
     watchId =
     navigator.geolocation.watchPosition(pos=>{
 
-        const lat = pos.coords.latitude;
-        const lon = pos.coords.longitude;
+        const lat =
+        pos.coords.latitude;
+
+        const lon =
+        pos.coords.longitude;
 
         track.push([lat,lon]);
 
         if(routeLayer){
+
             map.removeLayer(routeLayer);
         }
 
         routeLayer =
         L.polyline(track,{
+
             color:"red",
             weight:5
+
         }).addTo(map);
 
     });
@@ -305,14 +419,60 @@ function startRec(){
 
 function stopRec(){
 
-    navigator.geolocation.clearWatch(watchId);
+    navigator.geolocation.clearWatch(
+        watchId
+    );
 
     localStorage.setItem(
         "track",
         JSON.stringify(track)
     );
 
-    alert("Маршрут сохранён");
+    alert("Трек сохранён");
+}
+
+function toggleUI(){
+
+    const panel =
+    document.getElementById("panel");
+
+    const btn =
+    document.getElementById("toggleUI");
+
+    if(!hiddenUI){
+
+        Array.from(panel.children)
+        .forEach(el=>{
+
+            if(el.id !== "toggleUI"){
+
+                el.style.display = "none";
+            }
+        });
+
+        panel.style.width = "auto";
+        panel.style.right = "auto";
+
+        btn.style.display = "block";
+
+        btn.innerText =
+        "Показать меню";
+
+        hiddenUI = true;
+
+    }else{
+
+        Array.from(panel.children)
+        .forEach(el=>{
+
+            el.style.display = "block";
+        });
+
+        btn.innerText =
+        "Скрыть меню";
+
+        hiddenUI = false;
+    }
 }
 
 loadSaved();
