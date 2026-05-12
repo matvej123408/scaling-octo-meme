@@ -2,9 +2,10 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
+<meta name="viewport"
+content="width=device-width,initial-scale=1.0,user-scalable=no">
 
-<title>OpenWalk Mobile</title>
+<title>OpenWalk Пеший Навигатор</title>
 
 <link rel="stylesheet"
 href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
@@ -31,9 +32,11 @@ html,body{
     top:10px;
     left:10px;
     right:10px;
+
     z-index:1000;
 
     background:#1c1c1c;
+
     border-radius:18px;
 
     padding:12px;
@@ -54,7 +57,7 @@ select{
 
 input,
 select{
-    background:#2b2b2b;
+    background:#2a2a2a;
     color:white;
 }
 
@@ -64,16 +67,20 @@ button{
     font-weight:bold;
 }
 
+#toggleUI{
+    background:#ff9800;
+}
+
 #info{
-    color:white;
     margin-top:10px;
+    color:white;
     line-height:1.5;
 }
 
 .saved{
+    margin-top:10px;
     max-height:150px;
     overflow:auto;
-    margin-top:10px;
 }
 
 .card{
@@ -89,35 +96,53 @@ button{
     opacity:0.7;
 }
 
-#toggleUI{
-    background:#ff9800;
-}
-
 </style>
 </head>
 <body>
 
 <div id="panel">
 
-<input id="start" placeholder="Старт">
+<input id="start"
+placeholder="Старт">
 
-<input id="end" placeholder="Куда идти">
+<input id="end"
+placeholder="Куда идти">
 
 <select id="filter">
-    <option value="foot">Обычный пеший маршрут</option>
-    <option value="lit">Освещённые улицы</option>
-    <option value="towns">Через поселки</option>
+
+<option value="normal">
+Только пешие дороги
+</option>
+
+<option value="forest">
+Лесные тропы
+</option>
+
+<option value="quiet">
+Тихие дороги
+</option>
+
 </select>
 
-<button onclick="route()">Построить маршрут</button>
+<button onclick="route()">
+Построить маршрут
+</button>
 
-<button onclick="myLocation()">Моё местоположение</button>
+<button onclick="myLocation()">
+Моё местоположение
+</button>
 
-<button onclick="saveRoute()">Сохранить маршрут</button>
+<button onclick="saveRoute()">
+Сохранить маршрут
+</button>
 
-<button onclick="startRec()">Начать запись</button>
+<button onclick="startRec()">
+Начать запись
+</button>
 
-<button onclick="stopRec()">Остановить запись</button>
+<button onclick="stopRec()">
+Остановить запись
+</button>
 
 <button id="toggleUI"
 onclick="toggleUI()">
@@ -128,7 +153,9 @@ onclick="toggleUI()">
 Маршрут не построен
 </div>
 
-<div class="saved" id="saved"></div>
+<div class="saved"
+id="saved">
+</div>
 
 </div>
 
@@ -141,7 +168,9 @@ onclick="toggleUI()">
 <script>
 
 const map =
-L.map('map').setView([50.1109,8.6821],13);
+L.map('map').setView(
+[50.1109,8.6821],13
+);
 
 L.tileLayer(
 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -159,18 +188,19 @@ async function searchPlace(q){
 
     if(q.includes(",")){
 
-        const parts = q.split(",");
+        const p = q.split(",");
 
         return [{
-            lat:parts[0],
-            lon:parts[1]
+            lat:p[0],
+            lon:p[1]
         }];
     }
 
     const url =
-    `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}`;
+`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}`;
 
-    const r = await fetch(url);
+    const r =
+    await fetch(url);
 
     return await r.json();
 }
@@ -212,18 +242,23 @@ async function route(){
     const eLat = eData[0].lat;
     const eLon = eData[0].lon;
 
-    let extra = "";
+    let exclude =
+    "motorway,trunk,primary,secondary";
 
-    if(filter === "lit"){
-        extra = "&exclude=motorway";
+    if(filter === "forest"){
+
+        exclude =
+        "motorway,trunk";
     }
 
-    if(filter === "towns"){
-        extra = "&steps=true";
+    if(filter === "quiet"){
+
+        exclude =
+        "motorway,trunk,primary";
     }
 
     const url =
-`https://router.project-osrm.org/route/v1/foot/${sLon},${sLat};${eLon},${eLat}?overview=full&geometries=geojson${extra}`;
+`https://router.project-osrm.org/route/v1/foot/${sLon},${sLat};${eLon},${eLat}?overview=full&geometries=geojson&exclude=${exclude}`;
 
     const res =
     await fetch(url);
@@ -244,10 +279,13 @@ async function route(){
     }
 
     routeLayer =
-    L.geoJSON(data.routes[0].geometry,{
+    L.geoJSON(
+    data.routes[0].geometry,
+    {
         style:{
             color:"#00ff88",
-            weight:7
+            weight:8,
+            opacity:1
         }
     }).addTo(map);
 
@@ -263,17 +301,20 @@ async function route(){
         data.routes[0].duration / 60
     );
 
-    document.getElementById("info").innerHTML =
+    document.getElementById("info")
+    .innerHTML =
     `
     🚶 ${minutes} мин пешком<br>
     📏 ${(meters/1000).toFixed(2)} км<br>
-    ✅ Только пешие дороги
+    ✅ Только пешие дороги<br>
+    ❌ Без машин
     `;
 }
 
 function myLocation(){
 
-    navigator.geolocation.getCurrentPosition(pos=>{
+    navigator.geolocation
+    .getCurrentPosition(pos=>{
 
         const lat =
         pos.coords.latitude;
@@ -281,11 +322,15 @@ function myLocation(){
         const lon =
         pos.coords.longitude;
 
-        map.setView([lat,lon],16);
+        map.setView(
+        [lat,lon],16
+        );
 
-        L.marker([lat,lon]).addTo(map);
+        L.marker([lat,lon])
+        .addTo(map);
 
-        document.getElementById("start").value =
+        document.getElementById("start")
+        .value =
         `${lat},${lon}`;
     });
 }
@@ -293,10 +338,12 @@ function myLocation(){
 function saveRoute(){
 
     const start =
-    document.getElementById("start").value;
+    document.getElementById("start")
+    .value;
 
     const end =
-    document.getElementById("end").value;
+    document.getElementById("end")
+    .value;
 
     if(!start || !end){
         return;
@@ -304,8 +351,8 @@ function saveRoute(){
 
     let routes =
     JSON.parse(
-        localStorage.getItem("routes")
-        || "[]"
+    localStorage.getItem("routes")
+    || "[]"
     );
 
     routes.push({
@@ -314,13 +361,14 @@ function saveRoute(){
         end,
 
         time:
-        new Date().toLocaleString()
+        new Date()
+        .toLocaleString()
 
     });
 
     localStorage.setItem(
-        "routes",
-        JSON.stringify(routes)
+    "routes",
+    JSON.stringify(routes)
     );
 
     loadSaved();
@@ -337,11 +385,12 @@ function loadSaved(){
 
     const routes =
     JSON.parse(
-        localStorage.getItem("routes")
-        || "[]"
+    localStorage.getItem("routes")
+    || "[]"
     );
 
-    routes.reverse().forEach((r,index)=>{
+    routes.reverse()
+    .forEach((r,index)=>{
 
         div.innerHTML +=
         `
@@ -355,8 +404,11 @@ function loadSaved(){
         ${r.time}
         </div>
 
-        <button onclick="loadRoute(${index})">
+        <button
+        onclick="loadRoute(${index})">
+
         Открыть
+
         </button>
 
         </div>
@@ -368,17 +420,19 @@ function loadRoute(index){
 
     const routes =
     JSON.parse(
-        localStorage.getItem("routes")
-        || "[]"
+    localStorage.getItem("routes")
+    || "[]"
     );
 
     const r =
     routes.reverse()[index];
 
-    document.getElementById("start").value =
+    document.getElementById("start")
+    .value =
     r.start;
 
-    document.getElementById("end").value =
+    document.getElementById("end")
+    .value =
     r.end;
 
     route();
@@ -389,7 +443,8 @@ function startRec(){
     track = [];
 
     watchId =
-    navigator.geolocation.watchPosition(pos=>{
+    navigator.geolocation
+    .watchPosition(pos=>{
 
         const lat =
         pos.coords.latitude;
@@ -401,7 +456,9 @@ function startRec(){
 
         if(routeLayer){
 
-            map.removeLayer(routeLayer);
+            map.removeLayer(
+            routeLayer
+            );
         }
 
         routeLayer =
@@ -414,18 +471,17 @@ function startRec(){
 
     });
 
-    alert("Запись началась");
+    alert("Запись маршрута началась");
 }
 
 function stopRec(){
 
-    navigator.geolocation.clearWatch(
-        watchId
-    );
+    navigator.geolocation
+    .clearWatch(watchId);
 
     localStorage.setItem(
-        "track",
-        JSON.stringify(track)
+    "track",
+    JSON.stringify(track)
     );
 
     alert("Трек сохранён");
@@ -441,19 +497,27 @@ function toggleUI(){
 
     if(!hiddenUI){
 
-        Array.from(panel.children)
-        .forEach(el=>{
+        Array.from(
+        panel.children
+        ).forEach(el=>{
 
-            if(el.id !== "toggleUI"){
-
-                el.style.display = "none";
+            if(
+            el.id !== "toggleUI"
+            ){
+                el.style.display =
+                "none";
             }
+
         });
 
-        panel.style.width = "auto";
-        panel.style.right = "auto";
+        panel.style.width =
+        "auto";
 
-        btn.style.display = "block";
+        panel.style.right =
+        "auto";
+
+        btn.style.display =
+        "block";
 
         btn.innerText =
         "Показать меню";
@@ -462,10 +526,13 @@ function toggleUI(){
 
     }else{
 
-        Array.from(panel.children)
-        .forEach(el=>{
+        Array.from(
+        panel.children
+        ).forEach(el=>{
 
-            el.style.display = "block";
+            el.style.display =
+            "block";
+
         });
 
         btn.innerText =
